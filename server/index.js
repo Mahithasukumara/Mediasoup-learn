@@ -9,7 +9,7 @@ const io=new Server(server,{
     cors:true,
 
 })
-const peersnamespace=io.of('/mediasoup');
+// const peersnamespace=io.of('/mediasoup');
 
 let worker;
 let sendtransport;
@@ -33,7 +33,7 @@ const createWorker=async()=>{
     return newWorker;
 
 }
-createWorker()
+(async ()=>worker=await createWorker())
 const mediaCodecs=[{
     kind:"audio",
     mimeType:"audio/opus",
@@ -51,6 +51,7 @@ const mediaCodecs=[{
     parameters:{
         "x-google-start-bitrate":2000
     },
+    preferredPayLoadType:97,
     rtcpFeedback:{
         type:"nack"
     }
