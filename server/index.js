@@ -12,8 +12,8 @@ const io=new Server(server,{
 // const peersnamespace=io.of('/mediasoup');
 
 let worker;
-let sendtransport;
-let recievetransport;
+let producerTransport
+let consumerTransport
 let producer;
 let consumer;
 let router;
@@ -33,7 +33,8 @@ const createWorker=async()=>{
     return newWorker;
 
 }
-(async ()=>worker=await createWorker())
+(async ()=>{
+worker=await createWorker();
 const mediaCodecs=[{
     kind:"audio",
     mimeType:"audio/opus",
@@ -46,10 +47,10 @@ const mediaCodecs=[{
 
 },{
     kind:"video",
-    mimeType:"video/vp8",
+    mimeType:"video/VP8",
     clockRate:90000,
     parameters:{
-        "x-google-start-bitrate":2000
+        "x-google-start-bitrate":1500
     },
     preferredPayLoadType:97,
     rtcpFeedback:{
@@ -57,7 +58,146 @@ const mediaCodecs=[{
     }
     
 }]
+ router=await worker.createRouter({mediaCodecs:mediaCodecs});
+io.on("connection",async(socket)=>{
+    console.log(`socket connected:${socket.id}`);
+    socket.emit("connection:success",{socketId:socket.id});
+
+
+    socket.on("disconnect",async(socket)=>{
+        console.log(`socket disconnected: ${socket.id}`);
+    });
+    socket.on("getRouterCapabilities",(callback)=>{
+        const rtpCapabilities=router.rtpCapabilities;
+        callback(rtpCapabilities);
+    })
+    socket.on("createTransport",({sender},callback)=>{
+        if (sender){
+            producerTransport=createWebRtcTransport(callback);
+        }
+        else{
+            consumerTransport=createWebRtcTransport(callback);
+        }
+    })
+    socket.on("createProducerTransport",async ({dtlsParameters})=>{
+        await producerTransport?.connect({dtlsParameters});
+
+    })
+    socket.on("produce-transport",async({kind,rtpParameters},callback)=>{
+        produce=await producerTransport?.produce({kind,rtpParameters})
+        producer?.on("close-transport",()=>{
+            producer?.close()
+            console.log("producer closed");
+
+        })
+        callback({id:producer.id});
+
+    })
+    socket.on("createConsumerTransport",async ({dtlsParameters})=>{
+        await consumerTransport?.connect({dtlsParameters});
+
+    })
+    socket.on("consume-transport",async ({rtpCapabilities},callback)=>{
+        try{
+            if(producer){
+                console.log("we have a producer"+producer.kind);
+                if(!router.canConsume(producer.id,rtpCapabilities))
+                {
+                    console.error("cannot consume");
+                    return;
+                }
+                console.log("we can consume")
+                consumer=await consumerTransport?.consume({
+                    producerId:producer?.id,
+                    rtpCapabilities,
+                    paused:producer?.kind==="video"
+
+
+                })
+                consumer?.on("transport-closed",()=>{
+                    console.log("transport-closed");
+                    consumer?.close()
+                })
+                 consumer?.on("producer-closed",()=>{
+                    console.log("producer-closed");
+                    consumer?.close()
+                })
+            }
+            callback({
+                parameters:{
+                    producerId:producer?.id,
+                    id:consumer?.id,
+                    kind:consumer?.kind,
+                    rtpParameters:consumer?.rtpParameters
+                }
+            })
+        }
+        catch(error){
+            console.log("error consuming the data",error)
+            callback(error)
+
+        }
+        
+    });
+    socket.on("resumePausedConsumer", async (data) => {
+        console.log("resume consuming data");
+       await consumer?.resume();
+  });
+    
+   
+    const createWebRtcTransport= async (callback)=>{
+        try{
+            const createWebRTCTransportOptions={
+                listenIps:[
+                   { 
+                    ip:'0.0.0.0'
+                    }
+                ],
+                enableUdp:true,
+                enableTcp:true,
+                preferUdp:true,
+                
+            }
+            const transport=await router.createWebRtcTransport(createWebRTCTransportOptions);
+            console.log(`transport created:${transport.id}`);
+            transport.on("dtlsstatechange",((dtlsState)=>{
+                if (dtlsState==="closed"){
+                    transport.close()
+                }
+
+            }))
+            transport.on("close",()=>{
+                console.log("transport Closed")
+            })
+
+            callback({
+                params:{
+                    id:transport.id,
+                    dtlsParameters:transport.dtlsParameters,
+                    iceParameters:transport.iceParameters,
+                    iceCandidates:transport.iceCandidates
+                }
+            })
+
+            return transport;
+
+        }
+        catch(error){
+            console.log("error while creating a createWebRtcTransport")
+            callback({
+                params:{
+                    error
+                }
+            })
+        }
+    }
+
+})
+
+}
+
+)
 
 server.listen(5000,()=>{
-    console.log("Server running in port 8000");
+    console.log("Server running in port 5000");
 })
