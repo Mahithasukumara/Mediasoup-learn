@@ -1,5 +1,5 @@
 import { useState } from 'react'
-
+import Home from '../src/Home'
 import './App.css'
 
 function App() {
@@ -8,9 +8,10 @@ function App() {
     <>
       <div>
         <p className="text-4xl font-bold text-blue-400">
-         Mediasoup
+         Mediasoup 
       </p>
       </div>
+      <Home />
       
     </>
   )

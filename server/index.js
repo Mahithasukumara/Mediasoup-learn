@@ -6,7 +6,11 @@ import mediasoup from "mediasoup";
 const app=express()
 const server=http.createServer(app);
 const io=new Server(server,{
-    cors:true,
+    cors:{
+    origin: "http://localhost:5173",
+    methods: ["GET", "POST"],
+    credentials: true
+    }
 
 })
 // const peersnamespace=io.of('/mediasoup');
@@ -40,10 +44,10 @@ const mediaCodecs=[{
     mimeType:"audio/opus",
     clockRate:48000,
     channels:2,
-    preferredPayLoadType:98,
-    rtcpFeedback:{
+    preferredPayloadType:98,
+    rtcpFeedback:[{
         type:"nack"
-    }
+    }]
 
 },{
     kind:"video",
@@ -52,10 +56,10 @@ const mediaCodecs=[{
     parameters:{
         "x-google-start-bitrate":1500
     },
-    preferredPayLoadType:97,
-    rtcpFeedback:{
+    preferredPayloadType:97,
+    rtcpFeedback:[{
         type:"nack"
-    }
+    }]
     
 }]
  router=await worker.createRouter({mediaCodecs:mediaCodecs});
