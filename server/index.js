@@ -1,7 +1,7 @@
 import http from "http";
 import express from "express";
 import { Server } from "socket.io";
-import mediasoup from "mediasoup";
+import * as mediasoup from "mediasoup";
 
 const app=express()
 const server=http.createServer(app);
@@ -11,6 +11,7 @@ const io=new Server(server,{
     methods: ["GET", "POST"],
     credentials: true
     }
+ 
 
 })
 // const peersnamespace=io.of('/mediasoup');
@@ -22,9 +23,10 @@ let producer;
 let consumer;
 let router;
 const createWorker=async()=>{
+    try{
     const newWorker=await mediasoup.createWorker({
-        rtcMinPort:1000,
-        rtcMaxPort:1050
+        rtcMinPort:40000,
+        rtcMaxPort:40200
     })
     newWorker.on('died',(err)=>{
 
@@ -35,10 +37,20 @@ const createWorker=async()=>{
     })
     console.log(`Mediasoup worker created ${newWorker.pid}`)
     return newWorker;
+}
+catch(err){
+    console.error("Error creating medisoup worker",err)
+}
 
 }
 (async ()=>{
-worker=await createWorker();
+    try{
+        worker=await createWorker();
+    }
+    catch(err){
+        console.log("Medisoup worker creation failed",err)
+    }
+
 const mediaCodecs=[{
     kind:"audio",
     mimeType:"audio/opus",
@@ -68,8 +80,8 @@ io.on("connection",async(socket)=>{
     socket.emit("connection:success",{socketId:socket.id});
 
 
-    socket.on("disconnect",async(socket)=>{
-        console.log(`socket disconnected: ${socket.id}`);
+    socket.on("disconnect",async(reason)=>{
+        console.log(`socket disconnected: ${socket.id} :reason`,reason);
     });
     socket.on("getRouterCapabilities",(callback)=>{
         const rtpCapabilities=router.rtpCapabilities;
@@ -83,20 +95,27 @@ io.on("connection",async(socket)=>{
             consumerTransport=createWebRtcTransport(callback);
         }
     })
-    socket.on("createProducerTransport",async ({dtlsParameters})=>{
+    socket.on("createProducerTransport",async ({dtlsParameters},callback)=>{
+        try{
         await producerTransport?.connect({dtlsParameters});
+         callback({msg:{success:True}});
+        }
+        catch(err){
+            callback({msg:{failure:err}})
+        }
+
 
     })
-    socket.on("produce-transport",async({kind,rtpParameters},callback)=>{
-        produce=await producerTransport?.produce({kind,rtpParameters})
-        producer?.on("close-transport",()=>{
-            producer?.close()
-            console.log("producer closed");
+    // socket.on("produce-transport",async({kind,rtpParameters},callback)=>{
+    //     produce=await producerTransport?.produce({kind,rtpParameters})
+    //     producer?.on("close-transport",()=>{
+    //         producer?.close()
+    //         console.log("producer closed");
 
-        })
-        callback({id:producer.id});
+    //     })
+    //     callback({id:producer.id});
 
-    })
+    // })
     socket.on("createConsumerTransport",async ({dtlsParameters})=>{
         await consumerTransport?.connect({dtlsParameters});
 
@@ -200,7 +219,7 @@ io.on("connection",async(socket)=>{
 
 }
 
-)
+)();
 
 server.listen(5000,()=>{
     console.log("Server running in port 5000");
