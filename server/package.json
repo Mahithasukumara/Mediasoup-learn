@@ -3,7 +3,7 @@
     "cors": "^2.8.5",
     "express": "^5.1.0",
     "http": "^0.0.1-security",
-    "mediasoup": "^3.18.0",
+    "mediasoup": "^3.19.2",
     "nodemon": "^3.1.10",
     "socket.io": "^4.8.1"
   },
@@ -15,7 +15,6 @@
   "name": "server",
   "version": "1.0.0",
   "main": "index.js",
-  "devDependencies": {},
   "author": "Mahitha",
   "license": "ISC",
   "description": ""

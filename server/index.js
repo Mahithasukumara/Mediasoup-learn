@@ -87,18 +87,64 @@ io.on("connection",async(socket)=>{
         const rtpCapabilities=router.rtpCapabilities;
         callback(rtpCapabilities);
     })
-    socket.on("createTransport",({sender},callback)=>{
+    const createWebRtcTransport= async (callback)=>{
+        try{
+            const createWebRTCTransportOptions={
+                listenIps:[
+                   { 
+                    ip:'0.0.0.0'
+                    }
+                ],
+                enableUdp:true,
+                enableTcp:true,
+                preferUdp:true,
+                
+            }
+            const transport=await router.createWebRtcTransport(createWebRTCTransportOptions);
+            console.log(`transport created:${transport.id}`);
+            transport.on("dtlsstatechange",((dtlsState)=>{
+                if (dtlsState==="closed"){
+                    transport.close()
+                }
+
+            }))
+            transport.on("close",()=>{
+                console.log("transport Closed")
+            })
+
+            callback({
+                params:{
+                    id:transport.id,
+                    dtlsParameters:transport.dtlsParameters,
+                    iceParameters:transport.iceParameters,
+                    iceCandidates:transport.iceCandidates
+                }
+            })
+
+           
+
+        }
+        catch(error){
+            console.log("error while creating a createWebRtcTransport")
+            callback({
+                params:{
+                    error
+                }
+            })
+        }
+    }
+    socket.on("createTransport",async({sender},callback)=>{
         if (sender){
-            producerTransport=createWebRtcTransport(callback);
+            producerTransport=await createWebRtcTransport(callback);
         }
         else{
-            consumerTransport=createWebRtcTransport(callback);
+            consumerTransport=await createWebRtcTransport(callback);
         }
     })
-    socket.on("createProducerTransport",async ({dtlsParameters},callback)=>{
+    socket.on("connectProducerTransport",async ({dtlsParameters},callback)=>{
         try{
         await producerTransport?.connect({dtlsParameters});
-         callback({msg:{success:True}});
+         callback({msg:{success:true}});
         }
         catch(err){
             callback({msg:{failure:err}})
@@ -106,18 +152,30 @@ io.on("connection",async(socket)=>{
 
 
     })
-    // socket.on("produce-transport",async({kind,rtpParameters},callback)=>{
-    //     produce=await producerTransport?.produce({kind,rtpParameters})
-    //     producer?.on("close-transport",()=>{
-    //         producer?.close()
-    //         console.log("producer closed");
+     socket.on('transport-produce',async({kind,rtpParameters},callback,errback)=>{
+        try{
+        producer=await producerTransport?.produce({kind,rtpParameters});
+        producer?.on('close-transport',()=>{
+            socket.producer?.close()
+            console.log('producer closed')
+        
+        })
+     callback({id:producer.id})
+    
+    }
+    catch(err){
+        errback(err.message);
+    }}
+)
+    socket.on("createConsumerTransport",async ({dtlsParameters},callback,errback)=>{
+      try
+      {  await consumerTransport?.connect({dtlsParameters});
+        callback(console.log("success creating create consumer in server"))
+    }
+    catch(error){
+        errorback(error)
+    }
 
-    //     })
-    //     callback({id:producer.id});
-
-    // })
-    socket.on("createConsumerTransport",async ({dtlsParameters})=>{
-        await consumerTransport?.connect({dtlsParameters});
 
     })
     socket.on("consume-transport",async ({rtpCapabilities},callback)=>{
@@ -168,52 +226,7 @@ io.on("connection",async(socket)=>{
   });
     
    
-    const createWebRtcTransport= async (callback)=>{
-        try{
-            const createWebRTCTransportOptions={
-                listenIps:[
-                   { 
-                    ip:'0.0.0.0'
-                    }
-                ],
-                enableUdp:true,
-                enableTcp:true,
-                preferUdp:true,
-                
-            }
-            const transport=await router.createWebRtcTransport(createWebRTCTransportOptions);
-            console.log(`transport created:${transport.id}`);
-            transport.on("dtlsstatechange",((dtlsState)=>{
-                if (dtlsState==="closed"){
-                    transport.close()
-                }
-
-            }))
-            transport.on("close",()=>{
-                console.log("transport Closed")
-            })
-
-            callback({
-                params:{
-                    id:transport.id,
-                    dtlsParameters:transport.dtlsParameters,
-                    iceParameters:transport.iceParameters,
-                    iceCandidates:transport.iceCandidates
-                }
-            })
-
-            return transport;
-
-        }
-        catch(error){
-            console.log("error while creating a createWebRtcTransport")
-            callback({
-                params:{
-                    error
-                }
-            })
-        }
-    }
+   
 
 })
 
